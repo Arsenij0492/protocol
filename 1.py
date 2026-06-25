@@ -5,19 +5,20 @@ import shutil
 import zipfile
 import re
 from datetime import datetime
-from PySide6.QtCore import Qt, QPoint, QRect, QPropertyAnimation, QEasingCurve, QTimer
-from PySide6.QtGui import QColor, QCursor, QFont, QPalette, QLinearGradient, QBrush, QIcon, QPixmap
+from PySide6.QtCore import Qt, QPoint, QRect, QPropertyAnimation, QEasingCurve
+from PySide6.QtGui import QColor, QCursor, QFont, QPalette
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QListWidget, QListWidgetItem, QFileDialog,
     QMessageBox, QTabWidget, QTextEdit, QTableWidget, QTableWidgetItem,
-    QHeaderView, QCheckBox, QLineEdit, QComboBox, QSplitter, QFrame, QScrollArea
+    QHeaderView, QCheckBox, QLineEdit, QComboBox
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from jinja2 import Template
 
+
 # ============================================================
-# 1. MACWINDOW
+# 1. MACWINDOW — СТЕКЛЯННЫЙ СТИЛЬ
 # ============================================================
 class MacWindow(QWidget):
     RESIZE_MARGIN = 8
@@ -41,60 +42,86 @@ class MacWindow(QWidget):
         self._is_animating = False
         self._target_maximize = False
 
+        # Стеклянный фон
         self.content = QWidget(self)
         self.content.setMouseTracking(True)
-        self.content.setStyleSheet(self._content_style())
+        self.content.setStyleSheet("""
+            QWidget {
+                background: rgba(44, 44, 46, 0.92);
+                border-radius: 14px;
+                border: 1px solid rgba(255, 255, 255, 0.04);
+            }
+        """)
 
         self._main_layout = QVBoxLayout(self.content)
         self._main_layout.setContentsMargins(0, 0, 0, 0)
         self._main_layout.setSpacing(0)
 
+        # Заголовок (как в macOS)
         self.title_bar = QWidget()
-        self.title_bar.setFixedHeight(36)
+        self.title_bar.setFixedHeight(40)
         self.title_bar.setMouseTracking(True)
-        self.title_bar.setStyleSheet(self._title_bar_style())
+        self.title_bar.setStyleSheet("""
+            QWidget {
+                background: rgba(44, 44, 46, 0.8);
+                border-top-left-radius: 14px;
+                border-top-right-radius: 14px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            }
+        """)
 
-        self.close_btn = self._create_circle_button("#FF5F56")
-        self.min_btn = self._create_circle_button("#FFBD2E")
-        self.max_btn = self._create_circle_button("#27C93F")
+        self.close_btn = self._create_circle_button("#FF5F56", "#FF7B72")
+        self.min_btn = self._create_circle_button("#FFBD2E", "#FFD860")
+        self.max_btn = self._create_circle_button("#27C93F", "#4CD964")
 
         self.close_btn.clicked.connect(self.close)
         self.min_btn.clicked.connect(self.showMinimized)
         self.max_btn.clicked.connect(self.toggle_max_restore)
 
-        self.title_label = QPushButton(f"  {title}  ")
-        self.title_label.setFlat(True)
-        self.title_label.setEnabled(False)
-        self.title_label.setStyleSheet("color: #444444; font-weight: bold; font-size: 12px;")
+        self.title_label = QLabel(f"{title}")
+        self.title_label.setAlignment(Qt.AlignCenter)
+        self.title_label.setStyleSheet("""
+            QLabel {
+                color: #e8e8ec;
+                font-size: 13px;
+                font-weight: 500;
+                font-family: -apple-system, "SF Pro Display", "Segoe UI", Arial, sans-serif;
+            }
+        """)
 
         left_widget = QWidget()
         left_layout = QHBoxLayout(left_widget)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(4)
+        left_layout.setContentsMargins(12, 0, 0, 0)
+        left_layout.setSpacing(6)
         left_layout.addWidget(self.close_btn)
         left_layout.addWidget(self.min_btn)
         left_layout.addWidget(self.max_btn)
-        left_widget.setFixedWidth(14 * 3 + 4 * 2)
+        left_layout.addStretch()
 
         right_widget = QWidget()
-        right_widget.setFixedWidth(left_widget.width())
+        right_widget.setFixedWidth(left_widget.sizeHint().width())
 
-        btn_layout = QHBoxLayout(self.title_bar)
-        btn_layout.setContentsMargins(10, 0, 10, 0)
-        btn_layout.setSpacing(0)
-        btn_layout.addWidget(left_widget)
-        btn_layout.addStretch()
-        btn_layout.addWidget(self.title_label)
-        btn_layout.addStretch()
-        btn_layout.addWidget(right_widget)
+        title_layout = QHBoxLayout(self.title_bar)
+        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setSpacing(0)
+        title_layout.addWidget(left_widget)
+        title_layout.addWidget(self.title_label)
+        title_layout.addWidget(right_widget)
 
         self._main_layout.addWidget(self.title_bar)
 
+        # Тело окна (контент)
         self.body_widget = QWidget()
         self.body_widget.setMouseTracking(True)
-        self.body_widget.setStyleSheet(self._main_bar_style())
+        self.body_widget.setStyleSheet("""
+            QWidget {
+                background: transparent;
+                border-bottom-left-radius: 14px;
+                border-bottom-right-radius: 14px;
+            }
+        """)
         self.body_layout = QVBoxLayout(self.body_widget)
-        self.body_layout.setContentsMargins(0, 0, 0, 0)
+        self.body_layout.setContentsMargins(20, 20, 20, 20)
         self.body_layout.setSpacing(0)
 
         self._main_layout.addWidget(self.body_widget)
@@ -107,59 +134,25 @@ class MacWindow(QWidget):
     def setContentLayout(self, layout):
         self.body_layout.addLayout(layout)
 
-    def _create_circle_button(self, color):
-        hover_color = self._darken_color(color, 0.85)
+    def _create_circle_button(self, color, hover_color):
         btn = QPushButton()
-        btn.setFixedSize(14, 14)
+        btn.setFixedSize(13, 13)
         btn.setCursor(Qt.PointingHandCursor)
         btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {color};
                 border: none;
                 border-radius: 7px;
+                border: 1px solid rgba(0,0,0,0.08);
             }}
             QPushButton:hover {{
                 background-color: {hover_color};
             }}
+            QPushButton:pressed {{
+                background-color: {color};
+            }}
         """)
         return btn
-
-    @staticmethod
-    def _darken_color(color_str, factor):
-        color = QColor(color_str)
-        r = max(0, min(255, int(color.red() * factor)))
-        g = max(0, min(255, int(color.green() * factor)))
-        b = max(0, min(255, int(color.blue() * factor)))
-        return f"rgb({r},{g},{b})"
-
-    @staticmethod
-    def _content_style():
-        return """
-            QWidget {
-                background-color: #1c1c1e;
-                border-radius: 8px;
-            }
-        """
-
-    @staticmethod
-    def _title_bar_style():
-        return """
-            QWidget {
-                background-color: #2c2c2e;
-                border-top-left-radius: 10px;
-                border-top-right-radius: 10px;
-            }
-        """
-
-    @staticmethod
-    def _main_bar_style():
-        return """
-            QWidget {
-                background: transparent;
-                border-bottom-left-radius: 10px;
-                border-bottom-right-radius: 10px;
-            }
-        """
 
     def toggle_max_restore(self):
         if self._is_animating:
@@ -310,7 +303,7 @@ class MacWindow(QWidget):
 
 
 # ============================================================
-# 2. ЛОГИРОВАНИЕ
+# 2. ЛОГИРОВАНИЕ И КОНФИГ
 # ============================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = os.path.join(BASE_DIR, "logs")
@@ -557,7 +550,7 @@ def get_protocols_list():
 
 
 # ============================================================
-# 4. ГЛАВНОЕ ОКНО
+# 4. ГЛАВНОЕ ОКНО (СТИЛЬ КАК В ВЕБЕ)
 # ============================================================
 class MainWindow(MacWindow):
     def __init__(self):
@@ -570,40 +563,131 @@ class MainWindow(MacWindow):
         self.selected_protocols = set()
         self.all_protocols = []
         
+        # ===== ГЛОБАЛЬНЫЙ СТИЛЬ (КАК В ВЕБЕ) =====
         self.setStyleSheet("""
-            QWidget { background: #1c1c1e; color: #e8e8ec; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; }
-            QTabWidget::pane { border: none; background: transparent; }
-            QTabBar::tab { padding: 8px 20px; margin: 0 2px; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; color: #8e8e93; background: transparent; }
-            QTabBar::tab:hover { color: #e8e8ec; background: rgba(255,255,255,0.04); }
-            QTabBar::tab:selected { background: rgba(0,122,255,0.12); color: #4a9aff; }
-            QPushButton { background: #007aff; color: white; border: none; border-radius: 8px; padding: 8px 20px; font-size: 13px; font-weight: 500; }
-            QPushButton:hover { background: #0066d9; }
-            QPushButton:disabled { background: #3a3a3c; color: #8e8e93; }
-            QPushButton#danger { background: #ed6a5e; }
-            QPushButton#danger:hover { background: #e85a4e; }
-            QListWidget { background: #2c2c2e; border: 1px solid #3a3a3c; border-radius: 10px; padding: 4px; }
-            QListWidget::item { padding: 10px 14px; border-radius: 6px; color: #e8e8ec; }
-            QListWidget::item:selected { background: rgba(0,122,255,0.12); color: #e8e8ec; }
-            QListWidget::item:hover { background: rgba(255,255,255,0.04); }
-            QTableWidget { background: #2c2c2e; border: 1px solid #3a3a3c; border-radius: 10px; }
-            QTableWidget::item { padding: 8px 12px; color: #e8e8ec; }
-            QTableWidget::item:selected { background: rgba(0,122,255,0.12); }
-            QHeaderView::section { background: #3a3a3c; color: #8e8e93; padding: 8px; border: none; border-bottom: 1px solid #4a4a4c; font-weight: 500; }
-            QLineEdit, QTextEdit, QComboBox { background: #2c2c2e; border: 1px solid #3a3a3c; border-radius: 6px; padding: 6px 12px; color: #e8e8ec; font-size: 13px; }
-            QLineEdit:focus, QTextEdit:focus { border-color: #007aff; }
-            QTextEdit { background: #2c2c2e; }
-            QCheckBox { color: #e8e8ec; }
-            QLabel { color: #e8e8ec; }
+            QWidget {
+                background: transparent;
+                color: #e8e8ec;
+                font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Arial, sans-serif;
+            }
+            QTabWidget::pane {
+                border: none;
+                background: transparent;
+                margin-top: -1px;
+            }
+            QTabBar::tab {
+                padding: 8px 24px;
+                margin: 0 4px;
+                border: none;
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: 500;
+                color: #8e8e93;
+                background: transparent;
+            }
+            QTabBar::tab:hover {
+                color: #e8e8ec;
+                background: rgba(255, 255, 255, 0.04);
+            }
+            QTabBar::tab:selected {
+                background: rgba(0, 122, 255, 0.12);
+                color: #4a9aff;
+            }
+            QPushButton {
+                background: #007aff;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 24px;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background: #0066d9;
+            }
+            QPushButton:disabled {
+                background: #3a3a3c;
+                color: #8e8e93;
+            }
+            QPushButton#danger {
+                background: #ed6a5e;
+            }
+            QPushButton#danger:hover {
+                background: #e85a4e;
+            }
+            QListWidget {
+                background: rgba(255, 255, 255, 0.04);
+                border: 1px solid rgba(255, 255, 255, 0.04);
+                border-radius: 10px;
+                padding: 4px;
+            }
+            QListWidget::item {
+                padding: 10px 14px;
+                border-radius: 6px;
+                color: #e8e8ec;
+            }
+            QListWidget::item:selected {
+                background: rgba(0, 122, 255, 0.12);
+            }
+            QListWidget::item:hover {
+                background: rgba(255, 255, 255, 0.04);
+            }
+            QTableWidget {
+                background: rgba(255, 255, 255, 0.04);
+                border: 1px solid rgba(255, 255, 255, 0.04);
+                border-radius: 10px;
+            }
+            QTableWidget::item {
+                padding: 8px 12px;
+                color: #e8e8ec;
+            }
+            QTableWidget::item:selected {
+                background: rgba(0, 122, 255, 0.12);
+            }
+            QHeaderView::section {
+                background: rgba(255, 255, 255, 0.04);
+                color: #8e8e93;
+                padding: 8px;
+                border: none;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+                font-weight: 500;
+            }
+            QLineEdit, QTextEdit, QComboBox {
+                background: rgba(255, 255, 255, 0.04);
+                border: 1px solid rgba(255, 255, 255, 0.04);
+                border-radius: 8px;
+                padding: 8px 14px;
+                color: #e8e8ec;
+                font-size: 13px;
+            }
+            QLineEdit:focus, QTextEdit:focus {
+                border-color: #007aff;
+            }
+            QTextEdit {
+                background: rgba(255, 255, 255, 0.04);
+            }
+            QCheckBox {
+                color: #e8e8ec;
+            }
+            QLabel {
+                color: #e8e8ec;
+            }
+            QComboBox::drop-down {
+                border: none;
+            }
+            QComboBox::down-arrow {
+                image: none;
+            }
         """)
         
         central = QWidget()
         layout = QVBoxLayout(central)
         layout.setSpacing(16)
-        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setContentsMargins(0, 0, 0, 0)
         
         header = QHBoxLayout()
         title_label = QLabel("1С Протокол")
-        title_label.setStyleSheet("font-size: 28px; font-weight: 700; color: #e8e8ec;")
+        title_label.setStyleSheet("font-size: 28px; font-weight: 700; color: #e8e8ec; margin-bottom: 8px;")
         header.addWidget(title_label)
         header.addStretch()
         self.status_label = QLabel("Готов")
@@ -658,7 +742,7 @@ class MainWindow(MacWindow):
         layout.addWidget(self.btn_generate)
         
         self.web_view = QWebEngineView()
-        self.web_view.setStyleSheet("border-radius: 10px; border: 1px solid #3a3a3c;")
+        self.web_view.setStyleSheet("border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.04);")
         layout.addWidget(self.web_view)
         
         bottom_row = QHBoxLayout()
@@ -713,7 +797,7 @@ class MainWindow(MacWindow):
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-                html = f"<html><body style='font-family: Menlo, monospace; padding: 20px; background: #2c2c2e; white-space: pre-wrap; font-size: 12px; color: #e8e8ec;'><h3 style='color: #e8e8ec;'>{os.path.basename(file_path)}</h3><hr style='border-color: #3a3a3c;'>{content}</body></html>"
+                html = f"<html><body style='font-family: Menlo, monospace; padding: 20px; background: #2c2c2e; white-space: pre-wrap; font-size: 12px; color: #e8e8ec;'><h3 style='color: #e8e8ec;'>{os.path.basename(file_path)}</h3><hr style='border-color: rgba(255,255,255,0.04);'>{content}</body></html>"
                 self.web_view.setHtml(html)
         except Exception as e:
             self.web_view.setHtml(f"<p style='color: #ff3b30;'>Ошибка: {e}</p>")
@@ -773,12 +857,12 @@ class MainWindow(MacWindow):
         search_layout.addWidget(self.filter_combo)
         
         btn_refresh = QPushButton("Обновить")
-        btn_refresh.setStyleSheet("background: #3a3a3c; color: #e8e8ec;")
+        btn_refresh.setStyleSheet("background: rgba(255,255,255,0.04); color: #e8e8ec;")
         btn_refresh.clicked.connect(self.load_protocols)
         search_layout.addWidget(btn_refresh)
         
         btn_select_all = QPushButton("Выбрать все")
-        btn_select_all.setStyleSheet("background: #3a3a3c; color: #e8e8ec;")
+        btn_select_all.setStyleSheet("background: rgba(255,255,255,0.04); color: #e8e8ec;")
         btn_select_all.clicked.connect(self.select_all_protocols)
         search_layout.addWidget(btn_select_all)
         search_layout.addStretch()
@@ -786,7 +870,7 @@ class MainWindow(MacWindow):
         
         self.action_panel = QWidget()
         self.action_panel.setVisible(False)
-        self.action_panel.setStyleSheet("background: #3a3a3c; border-radius: 8px; padding: 8px 16px;")
+        self.action_panel.setStyleSheet("background: rgba(255,255,255,0.04); border-radius: 8px; padding: 8px 16px;")
         action_layout = QHBoxLayout(self.action_panel)
         
         self.selected_count_label = QLabel("Выбрано: 0")
@@ -803,7 +887,7 @@ class MainWindow(MacWindow):
         action_layout.addWidget(btn_delete)
         
         btn_clear_sel = QPushButton("Отменить")
-        btn_clear_sel.setStyleSheet("background: #3a3a3c; color: #e8e8ec;")
+        btn_clear_sel.setStyleSheet("background: rgba(255,255,255,0.04); color: #e8e8ec;")
         btn_clear_sel.clicked.connect(self.clear_selection)
         action_layout.addWidget(btn_clear_sel)
         
@@ -930,7 +1014,7 @@ class MainWindow(MacWindow):
         self.stat_cards = []
         for label, color in [("Всего протоколов", "#e8e8ec"), ("Пройдено тестов", "#34c759"), ("Упало тестов", "#ff3b30"), ("Среднее время", "#007aff")]:
             card = QWidget()
-            card.setStyleSheet(f"background: #3a3a3c; border-radius: 10px; padding: 14px 16px;")
+            card.setStyleSheet("background: rgba(255,255,255,0.04); border-radius: 10px; padding: 14px 16px;")
             card_layout = QVBoxLayout(card)
             number = QLabel("0")
             number.setStyleSheet(f"font-size: 28px; font-weight: 600; color: {color};")
@@ -1026,7 +1110,7 @@ class MainWindow(MacWindow):
         btn_layout.addWidget(btn_create)
         
         btn_restore = QPushButton("Восстановить")
-        btn_restore.setStyleSheet("background: #3a3a3c; color: #e8e8ec;")
+        btn_restore.setStyleSheet("background: rgba(255,255,255,0.04); color: #e8e8ec;")
         btn_restore.clicked.connect(self.restore_backup)
         btn_layout.addWidget(btn_restore)
         btn_layout.addStretch()
@@ -1099,7 +1183,7 @@ class MainWindow(MacWindow):
         
         self.logs_text = QTextEdit()
         self.logs_text.setReadOnly(True)
-        self.logs_text.setStyleSheet("background: #2c2c2e; border: 1px solid #3a3a3c; border-radius: 8px; font-family: 'SF Mono', monospace; font-size: 12px; padding: 10px;")
+        self.logs_text.setStyleSheet("background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.04); border-radius: 8px; font-family: 'SF Mono', monospace; font-size: 12px; padding: 10px;")
         layout.addWidget(self.logs_text)
         
         self.load_logs()
@@ -1134,16 +1218,16 @@ class MainWindow(MacWindow):
         layout.addWidget(QLabel("Тема"))
         theme_layout = QHBoxLayout()
         self.btn_light = QPushButton("Светлая")
-        self.btn_light.setStyleSheet("background: #3a3a3c; color: #e8e8ec;")
+        self.btn_light.setStyleSheet("background: rgba(255,255,255,0.04); color: #e8e8ec;")
         self.btn_dark = QPushButton("Тёмная")
         self.btn_dark.setStyleSheet("background: #007aff; color: white;")
         
         if config.get("theme") == "dark":
             self.btn_dark.setStyleSheet("background: #007aff; color: white;")
-            self.btn_light.setStyleSheet("background: #3a3a3c; color: #e8e8ec;")
+            self.btn_light.setStyleSheet("background: rgba(255,255,255,0.04); color: #e8e8ec;")
         else:
             self.btn_light.setStyleSheet("background: #007aff; color: white;")
-            self.btn_dark.setStyleSheet("background: #3a3a3c; color: #e8e8ec;")
+            self.btn_dark.setStyleSheet("background: rgba(255,255,255,0.04); color: #e8e8ec;")
         
         self.btn_light.clicked.connect(lambda: self.set_theme("light"))
         self.btn_dark.clicked.connect(lambda: self.set_theme("dark"))
@@ -1168,10 +1252,10 @@ class MainWindow(MacWindow):
     def set_theme(self, theme):
         if theme == "dark":
             self.btn_dark.setStyleSheet("background: #007aff; color: white;")
-            self.btn_light.setStyleSheet("background: #3a3a3c; color: #e8e8ec;")
+            self.btn_light.setStyleSheet("background: rgba(255,255,255,0.04); color: #e8e8ec;")
         else:
             self.btn_light.setStyleSheet("background: #007aff; color: white;")
-            self.btn_dark.setStyleSheet("background: #3a3a3c; color: #e8e8ec;")
+            self.btn_dark.setStyleSheet("background: rgba(255,255,255,0.04); color: #e8e8ec;")
         self.config["theme"] = theme
         save_config(self.config)
         self.status_label_settings.setText("Тема изменена. Перезапустите приложение для применения.")
