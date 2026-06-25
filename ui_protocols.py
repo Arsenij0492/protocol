@@ -2,7 +2,11 @@ import os
 import zipfile
 import webbrowser
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QCheckBox, QFileDialog, QMessageBox
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit,
+    QComboBox, QTableWidget, QTableWidgetItem, QHeaderView,
+    QCheckBox, QFileDialog, QMessageBox, QLabel
+)
 
 from parsers import get_protocols_list
 from logs_manager import log

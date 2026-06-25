@@ -1,6 +1,6 @@
 import os
 import shutil
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTextEdit, QMessageBox
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTextEdit, QMessageBox, QLabel
 from PySide6.QtCore import Qt
 
 from logs_manager import log
